@@ -303,19 +303,40 @@ Now queries for Kai's current work won't return Orion. Historical queries still 
 
 ---
 
-## Agent Diary
+## Specialist Agents
 
-Every AI agent gets a personal journal — written in AAAK, persists across sessions.
+Create agents that focus on specific areas. Each agent gets its own wing and diary in the palace — not in your CLAUDE.md. Add 50 agents, your config stays the same size.
 
 ```
-mempalace_diary_write("Kai-assistant",
-    "SESSION:2026-04-04|debugged.orion.timeout|root.cause:connection.pool.exhaustion|fix:pgbouncer|★★★")
-
-mempalace_diary_read("Kai-assistant", last_n=5)
-# → last 5 diary entries from this agent, compressed in AAAK
+~/.mempalace/agents/
+  ├── reviewer.json       # code quality, patterns, bugs
+  ├── architect.json      # design decisions, tradeoffs
+  └── ops.json            # deploys, incidents, infra
 ```
 
-Not a shared scratchpad — a personal journal with history. Each agent records what it worked on, what it learned, what matters. The next session reads the diary and picks up where it left off.
+Your CLAUDE.md just needs one line:
+
+```
+You have MemPalace agents. Run mempalace_list_agents to see them.
+```
+
+The AI discovers its agents from the palace at runtime. Each agent:
+
+- **Has a focus** — what it pays attention to
+- **Keeps a diary** — written in AAAK, persists across sessions
+- **Builds expertise** — reads its own history to stay sharp in its domain
+
+```
+# Agent writes to its diary after a code review
+mempalace_diary_write("reviewer",
+    "PR#42|auth.bypass.found|missing.middleware.check|pattern:3rd.time.this.quarter|★★★★")
+
+# Agent reads back its history
+mempalace_diary_read("reviewer", last_n=10)
+# → last 10 findings, compressed in AAAK
+```
+
+Each agent is a specialist lens on your data. The reviewer remembers every bug pattern it's seen. The architect remembers every design decision. The ops agent remembers every incident. They don't share a scratchpad — they each maintain their own memory.
 
 Letta charges $20–200/mo for agent-managed memory. MemPalace does it with a wing.
 
