@@ -361,6 +361,8 @@ def process_file(
         if hash_db.check_and_add(filepath):
             return 0
 
+    source_file = str(filepath)
+
     try:
         content = filepath.read_text(encoding="utf-8", errors="replace")
     except Exception:
