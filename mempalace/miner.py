@@ -11,7 +11,6 @@ import os
 import sys
 import hashlib
 import json
-import math
 import fnmatch
 from pathlib import Path
 from datetime import datetime
@@ -19,114 +18,7 @@ from collections import defaultdict
 
 import chromadb
 
-
-# =============================================================================
-# BLOOM FILTER FOR CONTENT HASHES
-# =============================================================================
-
-
-class BloomFilter:
-    """Simple bloom filter for fast duplicate checking."""
-
-    def __init__(self, capacity: int = 100000, false_positive_rate: float = 0.01):
-        self.size = self._optimal_size(capacity, false_positive_rate)
-        self.hash_count = self._optimal_hash_count(capacity, self.size)
-        self.array = [False] * self.size
-
-    def _optimal_size(self, n: int, p: float) -> int:
-        return int(-n * math.log(p) / (math.log(2) ** 2))
-
-    def _optimal_hash_count(self, n: int, m: int) -> int:
-        return max(1, int((m / n) * math.log(2)))
-
-    def _hashes(self, item: str) -> list:
-        result = []
-        for i in range(self.hash_count):
-            h = hashlib.md5((item + str(i)).encode()).hexdigest()
-            result.append(int(h, 16) % self.size)
-        return result
-
-    def add(self, item: str):
-        for idx in self._hashes(item):
-            self.array[idx] = True
-
-    def __contains__(self, item: str) -> bool:
-        return all(self.array[idx] for idx in self._hashes(item))
-
-    def save(self, path: str):
-        with open(path, "w") as f:
-            json.dump(
-                {"array_size": self.size, "hash_count": self.hash_count, "array": self.array}, f
-            )
-
-    @classmethod
-    def load(cls, path: str) -> "BloomFilter":
-        if not os.path.exists(path):
-            return cls()
-        with open(path, "r") as f:
-            data = json.load(f)
-        bf = cls.__new__(cls)
-        bf.size = data["array_size"]
-        bf.hash_count = data["hash_count"]
-        bf.array = data["array"]
-        return bf
-
-
-class ContentHashDB:
-    """Persistent hash database for file content."""
-
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self.bloom_path = db_path + ".bloom"
-        self.hashes = {}
-        self.bloom = (
-            BloomFilter.load(self.bloom_path) if os.path.exists(self.bloom_path) else BloomFilter()
-        )
-        self._load()
-
-    def _load(self):
-        if os.path.exists(self.db_path):
-            with open(self.db_path, "r") as f:
-                self.hashes = json.load(f)
-        self.hashes = {str(k): v for k, v in self.hashes.items()}
-
-    def _save(self):
-        with open(self.db_path, "w") as f:
-            json.dump(self.hashes, f)
-        self.bloom.save(self.bloom_path)
-
-    def compute_hash(self, filepath: Path) -> str:
-        """Compute SHA256 hash of file content."""
-        h = hashlib.sha256()
-        h.update(filepath.read_bytes())
-        return h.hexdigest()
-
-    def check_and_add(self, filepath: Path) -> bool:
-        """Check if file content hash exists, add if not. Returns True if duplicate."""
-        try:
-            content_hash = self.compute_hash(filepath)
-        except Exception:
-            return False
-
-        filepath_str = str(filepath)
-
-        if content_hash in self.bloom:
-            if filepath_str in self.hashes:
-                return True
-            return True
-
-        self.hashes[filepath_str] = content_hash
-        self.bloom.add(content_hash)
-        self._save()
-        return False
-
-    def clear(self):
-        self.hashes = {}
-        self.bloom = BloomFilter()
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
-        if os.path.exists(self.bloom_path):
-            os.remove(self.bloom_path)
+from .content_hash import BloomFilter, ContentHashDB
 
 
 READABLE_EXTENSIONS = {
@@ -581,12 +473,18 @@ def process_file(
 ) -> int:
     """Read, chunk, route, and file one file. Returns drawer count."""
 
-    # Skip if already filed (content hash check)
+    # Skip if already filed (content hash check first)
     if not dry_run and hash_db:
         if hash_db.check_and_add(filepath):
             return 0
 
     source_file = str(filepath)
+
+    # Fallback: check ChromaDB for safety (handles JSON deletion/corruption)
+    if not dry_run and file_already_mined(collection, source_file):
+        if hash_db:
+            hash_db.record(filepath)
+        return 0
 
     try:
         content = filepath.read_text(encoding="utf-8", errors="replace")
@@ -768,6 +666,9 @@ def mine(
         print(f"    {room:20} {count} files")
     print('\n  Next: mempalace search "what you\'re looking for"')
     print(f"{'=' * 55}\n")
+
+    if not dry_run and hash_db:
+        hash_db.flush()
 
 
 # =============================================================================

@@ -18,7 +18,7 @@ from collections import defaultdict
 import chromadb
 
 from .normalize import normalize
-from .miner import BloomFilter, ContentHashDB
+from .content_hash import BloomFilter, ContentHashDB
 
 
 # File types that might contain conversations
@@ -301,11 +301,18 @@ def mine_convos(
     for i, filepath in enumerate(files, 1):
         source_file = str(filepath)
 
-        # Skip if already filed (content hash check)
+        # Skip if already filed (content hash check first)
         if not dry_run and hash_db:
             if hash_db.check_and_add(filepath):
                 files_skipped += 1
                 continue
+
+        # Fallback: check ChromaDB for safety
+        if not dry_run and file_already_mined(collection, source_file):
+            if hash_db:
+                hash_db.record(filepath)
+            files_skipped += 1
+            continue
 
         # Normalize format
         try:
@@ -398,6 +405,9 @@ def mine_convos(
             print(f"    {room:20} {count} files")
     print('\n  Next: mempalace search "what you\'re looking for"')
     print(f"{'=' * 55}\n")
+
+    if not dry_run and hash_db:
+        hash_db.flush()
 
 
 if __name__ == "__main__":

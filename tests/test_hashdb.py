@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 import hashlib
 
-from mempalace.miner import BloomFilter, ContentHashDB
+from mempalace.content_hash import BloomFilter, ContentHashDB
 
 
 class TestBloomFilter:
@@ -23,129 +23,119 @@ class TestBloomFilter:
         false_positives = sum(1 for i in range(1000, 2000) if f"item_{i}" in bf)
         assert false_positives < 150
 
-    def test_save_and_load(self):
+    def test_save_and_load(self, tmp_path):
         bf1 = BloomFilter(capacity=1000)
         bf1.add("test")
         bf1.add("data")
 
-        tmpdir = tempfile.mkdtemp()
-        try:
-            bf1.save(os.path.join(tmpdir, "bloom.json"))
-            bf2 = BloomFilter.load(os.path.join(tmpdir, "bloom.json"))
-            assert "test" in bf2
-            assert "data" in bf2
-        finally:
-            shutil.rmtree(tmpdir)
+        bloom_file = tmp_path / "bloom.json"
+        bf1.save(str(bloom_file))
+        bf2 = BloomFilter.load(str(bloom_file))
+        assert "test" in bf2
+        assert "data" in bf2
 
 
 class TestContentHashDB:
-    def test_compute_hash(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            test_file = Path(tmpdir) / "test.txt"
-            test_file.write_text("hello world")
+    def test_compute_hash(self, tmp_path):
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("hello world")
 
-            db = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            content_hash = db.compute_hash(test_file)
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        content_hash = db.compute_hash(test_file)
 
-            assert len(content_hash) == 64
-            assert content_hash == hashlib.sha256(b"hello world").hexdigest()
-        finally:
-            shutil.rmtree(tmpdir)
+        assert len(content_hash) == 64
+        assert content_hash == hashlib.sha256(b"hello world").hexdigest()
 
-    def test_check_and_add_new_file(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            test_file = Path(tmpdir) / "test.txt"
-            test_file.write_text("new content")
+    def test_check_and_add_new_file(self, tmp_path):
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("new content")
 
-            db = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            is_duplicate = db.check_and_add(test_file)
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        is_duplicate = db.check_and_add(test_file)
 
-            assert is_duplicate is False
-            assert str(test_file) in db.hashes
-        finally:
-            shutil.rmtree(tmpdir)
+        assert is_duplicate is False
+        assert str(test_file) in db.hashes
 
-    def test_check_and_add_duplicate_file(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            test_file = Path(tmpdir) / "test.txt"
-            test_file.write_text("same content")
+    def test_check_and_add_duplicate_file(self, tmp_path):
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("same content")
 
-            db = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            db.check_and_add(test_file)
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        db.check_and_add(test_file)
 
-            is_duplicate = db.check_and_add(test_file)
+        is_duplicate = db.check_and_add(test_file)
 
-            assert is_duplicate is True
-        finally:
-            shutil.rmtree(tmpdir)
+        assert is_duplicate is True
 
-    def test_different_files_same_content(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            file1 = Path(tmpdir) / "file1.txt"
-            file2 = Path(tmpdir) / "file2.txt"
-            file1.write_text("identical content")
-            file2.write_text("identical content")
+    def test_different_files_same_content(self, tmp_path):
+        file1 = tmp_path / "file1.txt"
+        file2 = tmp_path / "file2.txt"
+        file1.write_text("identical content")
+        file2.write_text("identical content")
 
-            db = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            db.check_and_add(file1)
-            is_dup = db.check_and_add(file2)
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        db.check_and_add(file1)
+        is_dup = db.check_and_add(file2)
 
-            assert is_dup is True
-        finally:
-            shutil.rmtree(tmpdir)
+        assert is_dup is True
 
-    def test_different_content_not_duplicate(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            file1 = Path(tmpdir) / "file1.txt"
-            file2 = Path(tmpdir) / "file2.txt"
-            file1.write_text("content A")
-            file2.write_text("content B")
+    def test_different_content_not_duplicate(self, tmp_path):
+        file1 = tmp_path / "file1.txt"
+        file2 = tmp_path / "file2.txt"
+        file1.write_text("content A")
+        file2.write_text("content B")
 
-            db = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            db.check_and_add(file1)
-            is_dup = db.check_and_add(file2)
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        db.check_and_add(file1)
+        is_dup = db.check_and_add(file2)
 
-            assert is_dup is False
-        finally:
-            shutil.rmtree(tmpdir)
+        assert is_dup is False
 
-    def test_persistence(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            test_file = Path(tmpdir) / "test.txt"
-            test_file.write_text("persistent content")
+    def test_persistence(self, tmp_path):
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("persistent content")
 
-            db1 = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            db1.check_and_add(test_file)
+        db1 = ContentHashDB(str(tmp_path / "hashes.json"))
+        db1.check_and_add(test_file)
+        db1.flush()
 
-            db2 = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            is_dup = db2.check_and_add(test_file)
+        db2 = ContentHashDB(str(tmp_path / "hashes.json"))
+        is_dup = db2.check_and_add(test_file)
 
-            assert is_dup is True
-            assert str(test_file) in db2.hashes
-        finally:
-            shutil.rmtree(tmpdir)
+        assert is_dup is True
+        assert str(test_file) in db2.hashes
 
-    def test_clear(self):
-        tmpdir = tempfile.mkdtemp()
-        try:
-            test_file = Path(tmpdir) / "test.txt"
-            test_file.write_text("content")
+    def test_clear(self, tmp_path):
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
 
-            db = ContentHashDB(os.path.join(tmpdir, "hashes.json"))
-            db.check_and_add(test_file)
-            assert str(test_file) in db.hashes
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        db.check_and_add(test_file)
+        assert str(test_file) in db.hashes
 
-            db.clear()
-            assert len(db.hashes) == 0
-            assert "content" not in db.bloom
+        db.clear()
+        assert len(db.hashes) == 0
 
-            is_dup = db.check_and_add(test_file)
-            assert is_dup is False
-        finally:
-            shutil.rmtree(tmpdir)
+        is_dup = db.check_and_add(test_file)
+        assert is_dup is False
+
+    def test_record_fallback(self, tmp_path):
+        """Test that record() adds without checking (for ChromaDB fallback path)."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("recorded content")
+
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        db.record(test_file)
+
+        assert str(test_file) in db.hashes
+
+    def test_false_positive_handled(self, tmp_path):
+        """Test that files are correctly added after bloom false positive."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("unique content")
+
+        db = ContentHashDB(str(tmp_path / "hashes.json"))
+        is_dup = db.check_and_add(test_file)
+
+        assert is_dup is False
+        assert str(test_file) in db.hashes
