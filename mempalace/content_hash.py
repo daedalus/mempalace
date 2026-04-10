@@ -97,19 +97,17 @@ class ContentHashDB:
 
         filepath_str = str(filepath)
 
-        # Check if we've seen this exact content hash before
-        if content_hash in self._hash_set:
-            return True
-
-        # Check if this specific file was already recorded
-        if filepath_str in self.hashes:
-            return True
-
-        # New file - record it
-        self.hashes[filepath_str] = content_hash
-        self._hash_set.add(content_hash)
-        self.bloom.add(content_hash)
-        return False
+        if content_hash in self.bloom:
+            if content_hash in self._hash_set:
+                return True
+            self._hash_set.add(content_hash)
+            self.hashes[filepath_str] = content_hash
+            return False
+        else:
+            self._hash_set.add(content_hash)
+            self.hashes[filepath_str] = content_hash
+            self.bloom.add(content_hash)
+            return False
 
     def record(self, filepath: Path):
         """Record a file without checking (for fallback after storage check)."""
