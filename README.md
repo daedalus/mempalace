@@ -218,33 +218,33 @@ There are also **halls**, which connect rooms within a wing, and **tunnels**, wh
 You say what you're looking for and boom, it already knows which wing to go to. Just *that* in itself would have made a big difference. But this is beautiful, elegant, organic, and most importantly, efficient.
 
 ```
-  ┌─────────────────────────────────────────────────────────────┐
-  │  WING: Person                                              │
-  │                                                            │
-  │    ┌──────────┐  ──hall──  ┌──────────┐                    │
-  │    │  Room A  │            │  Room B  │                    │
-  │    └────┬─────┘            └──────────┘                    │
-  │         │                                                  │
-  │         ▼                                                  │
-  │    ┌──────────┐      ┌──────────┐                          │
-  │    │  Closet  │ ───▶ │  Drawer  │                          │
-  │    └──────────┘      └──────────┘                          │
-  └─────────┼──────────────────────────────────────────────────┘
-            │
+  +------------------------------------------------------------+
+  ¦  WING: Person                                              ¦
+  ¦                                                            ¦
+  ¦    +----------+            +----------+                    ¦
+  ¦    ¦  Room A  ¦  --hall--  ¦  Room B  ¦                    ¦
+  ¦    +----------+            +----------+                    ¦
+  ¦         ¦                                                  ¦
+  ¦         v                                                  ¦
+  ¦    +----------+      +----------+                          ¦
+  ¦    ¦  Closet  ¦ ---> ¦  Drawer  ¦                          ¦
+  ¦    +----------+      +----------+                          ¦
+  +---------+--------------------------------------------------+
+            ¦
           tunnel
-            │
-  ┌─────────┼──────────────────────────────────────────────────┐
-  │  WING: Project                                             │
-  │         │                                                  │
-  │    ┌────┴─────┐  ──hall──  ┌──────────┐                    │
-  │    │  Room A  │            │  Room C  │                    │
-  │    └────┬─────┘            └──────────┘                    │
-  │         │                                                  │
-  │         ▼                                                  │
-  │    ┌──────────┐      ┌──────────┐                          │
-  │    │  Closet  │ ───▶ │  Drawer  │                          │
-  │    └──────────┘      └──────────┘                          │
-  └─────────────────────────────────────────────────────────────┘
+            ¦
+  +---------+--------------------------------------------------+
+  ¦  WING: Project                                             ¦
+  ¦         ¦                                                  ¦
+  ¦    +----------+            +----------+                    ¦
+  ¦    ¦  Room A  ¦  --hall--  ¦  Room C  ¦                    ¦
+  ¦    +----------+            +----------+                    ¦
+  ¦         ¦                                                  ¦
+  ¦         v                                                  ¦
+  ¦    +----------+      +----------+                          ¦
+  ¦    ¦  Closet  ¦ ---> ¦  Drawer  ¦                          ¦
+  ¦    +----------+      +----------+                          ¦
+  +------------------------------------------------------------+
 ```
 
 **Wings** — a person or project. As many as you need.
@@ -722,7 +722,7 @@ PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines.
 MIT — see [LICENSE](LICENSE).
 
 <!-- Link Definitions -->
-[version-shield]: https://img.shields.io/badge/version-3.1.0-4dc9f6?style=flat-square&labelColor=0a0e14
+[version-shield]: https://img.shields.io/badge/version-3.2.0-4dc9f6?style=flat-square&labelColor=0a0e14
 [release-link]: https://github.com/milla-jovovich/mempalace/releases
 [python-shield]: https://img.shields.io/badge/python-3.9+-7dd8f8?style=flat-square&labelColor=0a0e14&logo=python&logoColor=7dd8f8
 [python-link]: https://www.python.org/

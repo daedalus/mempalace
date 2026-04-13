@@ -134,7 +134,8 @@ def cmd_split(args):
     import sys
 
     # Rebuild argv for split_mega_files argparse
-    argv = ["--source", args.dir]
+    # Expand ~ and resolve to absolute path so split_mega_files sees a real path
+    argv = ["--source", str(Path(args.dir).expanduser().resolve())]
     if args.output_dir:
         argv += ["--output-dir", args.output_dir]
     if args.dry_run:
@@ -155,7 +156,7 @@ def cmd_migrate(args):
     from .migrate import migrate
 
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
-    migrate(palace_path=palace_path, dry_run=args.dry_run)
+    migrate(palace_path=palace_path, dry_run=args.dry_run, confirm=getattr(args, "yes", False))
 
 
 def cmd_status(args):
@@ -169,11 +170,18 @@ def cmd_repair(args):
     """Rebuild palace vector index from SQLite metadata."""
     import chromadb
     import shutil
+    from .migrate import confirm_destructive_action, contains_palace_database
 
-    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    palace_path = os.path.abspath(
+        os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    )
+    db_path = os.path.join(palace_path, "chroma.sqlite3")
 
     if not os.path.isdir(palace_path):
         print(f"\n  No palace found at {palace_path}")
+        return
+    if not contains_palace_database(palace_path):
+        print(f"\n  No palace database found at {db_path}")
         return
 
     print(f"\n{'=' * 55}")
@@ -196,6 +204,11 @@ def cmd_repair(args):
         print("  Nothing to repair.")
         return
 
+    if not confirm_destructive_action(
+        "Repair", palace_path, assume_yes=getattr(args, "yes", False)
+    ):
+        return
+
     # Extract all drawers in batches
     print("\n  Extracting drawers...")
     batch_size = 5000
@@ -212,9 +225,15 @@ def cmd_repair(args):
     print(f"  Extracted {len(all_ids)} drawers")
 
     # Backup and rebuild
-    palace_path = palace_path.rstrip(os.sep)
+    palace_path = os.path.normpath(palace_path)
     backup_path = palace_path + ".backup"
     if os.path.exists(backup_path):
+        if not contains_palace_database(backup_path):
+            print(
+                "  Backup validation failed: backup path exists but does not contain chroma.sqlite3. "
+                f"Please remove or rename: {backup_path}"
+            )
+            return
         shutil.rmtree(backup_path)
     print(f"  Backing up to {backup_path}...")
     shutil.copytree(palace_path, backup_path)
@@ -349,7 +368,7 @@ def cmd_compress(args):
         stats = dialect.compression_stats(doc, compressed)
 
         total_original += stats["original_chars"]
-        total_compressed += stats["compressed_chars"]
+        total_compressed += stats["summary_chars"]
 
         compressed_entries.append((doc_id, compressed, meta, stats))
 
@@ -359,7 +378,7 @@ def cmd_compress(args):
             source = Path(meta.get("source_file", "?")).name
             print(f"  [{wing_name}/{room_name}] {source}")
             print(
-                f"    {stats['original_tokens']}t -> {stats['compressed_tokens']}t ({stats['ratio']:.1f}x)"
+                f"    {stats['original_tokens_est']}t -> {stats['summary_tokens_est']}t ({stats['size_ratio']:.1f}x)"
             )
             print(f"    {compressed}")
             print()
@@ -370,8 +389,8 @@ def cmd_compress(args):
             comp_col = client.get_or_create_collection("mempalace_compressed")
             for doc_id, compressed, meta, stats in compressed_entries:
                 comp_meta = dict(meta)
-                comp_meta["compression_ratio"] = round(stats["ratio"], 1)
-                comp_meta["original_tokens"] = stats["original_tokens"]
+                comp_meta["compression_ratio"] = round(stats["size_ratio"], 1)
+                comp_meta["original_tokens"] = stats["original_tokens_est"]
                 comp_col.upsert(
                     ids=[doc_id],
                     documents=[compressed],
@@ -386,8 +405,9 @@ def cmd_compress(args):
 
     # Summary
     ratio = total_original / max(total_compressed, 1)
-    orig_tokens = Dialect.count_tokens("x" * total_original)
-    comp_tokens = Dialect.count_tokens("x" * total_compressed)
+    # Estimate tokens from char count (~3.8 chars/token for English text)
+    orig_tokens = max(1, int(total_original / 3.8))
+    comp_tokens = max(1, int(total_compressed / 3.8))
     print(f"  Total: {orig_tokens:,}t -> {comp_tokens:,}t ({ratio:.1f}x compression)")
     if args.dry_run:
         print("  (dry run -- nothing stored)")
@@ -530,7 +550,7 @@ def main():
     sub.add_parser(
         "repair",
         help="Rebuild palace vector index from stored data (fixes segfaults after corruption)",
-    )
+    ).add_argument("--yes", action="store_true", help="Skip confirmation for destructive changes")
 
     # mcp
     sub.add_parser(
@@ -548,6 +568,9 @@ def main():
         "--dry-run",
         action="store_true",
         help="Show what would be migrated without changing anything",
+    )
+    p_migrate.add_argument(
+        "--yes", action="store_true", help="Skip confirmation for destructive changes"
     )
 
     sub.add_parser("status", help="Show what's been filed")
