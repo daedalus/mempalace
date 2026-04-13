@@ -60,9 +60,7 @@ def test_scan_project_respects_gitignore():
         write_file(project_root / ".gitignore", "ignored.py\ngenerated/\n")
         write_file(project_root / "src" / "app.py", "print('hello')\n" * 20)
         write_file(project_root / "ignored.py", "print('ignore me')\n" * 20)
-        write_file(
-            project_root / "generated" / "artifact.py", "print('artifact')\n" * 20
-        )
+        write_file(project_root / "generated" / "artifact.py", "print('artifact')\n" * 20)
 
         assert scanned_files(project_root) == ["src/app.py"]
     finally:
@@ -77,9 +75,7 @@ def test_scan_project_respects_nested_gitignore():
         write_file(project_root / ".gitignore", "*.log\n")
         write_file(project_root / "subrepo" / ".gitignore", "tasks/\n")
         write_file(project_root / "subrepo" / "src" / "main.py", "print('main')\n" * 20)
-        write_file(
-            project_root / "subrepo" / "tasks" / "task.py", "print('task')\n" * 20
-        )
+        write_file(project_root / "subrepo" / "tasks" / "task.py", "print('task')\n" * 20)
         write_file(project_root / "subrepo" / "debug.log", "debug\n" * 20)
 
         assert scanned_files(project_root) == ["subrepo/src/main.py"]
@@ -138,9 +134,7 @@ def test_scan_project_can_disable_gitignore():
         write_file(project_root / ".gitignore", "data/\n")
         write_file(project_root / "data" / "stuff.csv", "a,b,c\n" * 20)
 
-        assert scanned_files(project_root, respect_gitignore=False) == [
-            "data/stuff.csv"
-        ]
+        assert scanned_files(project_root, respect_gitignore=False) == ["data/stuff.csv"]
     finally:
         shutil.rmtree(tmpdir)
 
@@ -153,9 +147,7 @@ def test_scan_project_can_include_ignored_directory():
         write_file(project_root / ".gitignore", "docs/\n")
         write_file(project_root / "docs" / "guide.md", "# Guide\n" * 20)
 
-        assert scanned_files(project_root, include_ignored=["docs"]) == [
-            "docs/guide.md"
-        ]
+        assert scanned_files(project_root, include_ignored=["docs"]) == ["docs/guide.md"]
     finally:
         shutil.rmtree(tmpdir)
 
@@ -280,9 +272,7 @@ def test_mine_dry_run_with_tiny_file_no_crash():
         project_root = Path(tmpdir).resolve()
 
         # One normal file and one that falls below MIN_CHUNK_SIZE
-        write_file(
-            project_root / "good.py", "def main():\n    print('hello world')\n" * 20
-        )
+        write_file(project_root / "good.py", "def main():\n    print('hello world')\n" * 20)
         write_file(project_root / "tiny.txt", "x")
 
         with open(project_root / "mempalace.yaml", "w") as f:

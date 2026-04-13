@@ -97,9 +97,7 @@ def detect_chromadb_version(db_path: str) -> str:
         # 0.6.x has embeddings_queue but no schema_str
         tables = [
             r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         ]
         if "embeddings_queue" in tables:
             return "0.6.x"
@@ -211,9 +209,7 @@ def migrate(palace_path: str, dry_run: bool = False, confirm: bool = False):
     temp_palace = tempfile.mkdtemp(prefix="mempalace_migrate_")
     print(f"  Creating fresh palace in {temp_palace}...")
     client = chromadb.PersistentClient(path=temp_palace)
-    col = client.get_or_create_collection(
-        "mempalace_drawers", metadata={"hnsw:space": "cosine"}
-    )
+    col = client.get_or_create_collection("mempalace_drawers", metadata={"hnsw:space": "cosine"})
 
     # Re-import in batches
     batch_size = 500

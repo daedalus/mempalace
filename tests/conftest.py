@@ -101,9 +101,7 @@ def config(tmp_dir, palace_path):
 def collection(palace_path):
     """A ChromaDB collection pre-seeded in the temp palace."""
     client = chromadb.PersistentClient(path=palace_path)
-    col = client.get_or_create_collection(
-        "mempalace_drawers", metadata={"hnsw:space": "cosine"}
-    )
+    col = client.get_or_create_collection("mempalace_drawers", metadata={"hnsw:space": "cosine"})
     yield col
     client.delete_collection("mempalace_drawers")
     del client
@@ -187,9 +185,7 @@ def seeded_kg(kg):
     kg.add_triple("Alice", "parent_of", "Max", valid_from="2015-04-01")
     kg.add_triple("Max", "does", "swimming", valid_from="2025-01-01")
     kg.add_triple("Max", "does", "chess", valid_from="2024-06-01")
-    kg.add_triple(
-        "Alice", "works_at", "Acme Corp", valid_from="2020-01-01", valid_to="2024-12-31"
-    )
+    kg.add_triple("Alice", "works_at", "Acme Corp", valid_from="2020-01-01", valid_to="2024-12-31")
     kg.add_triple("Alice", "works_at", "NewCo", valid_from="2025-01-01")
 
     return kg
