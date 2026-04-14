@@ -77,9 +77,25 @@ jobs:
         run: |
           set -euo pipefail
           tag_version="${GITHUB_REF_NAME#v}"
+
+          # Semver pre-release tags (v3.4.0-rc1, v1.0.0-beta.2, ...) are treated
+          # as internal/staging and are not validated against the manifest. They
+          # do not flow to end users via `/plugin update`, which reads the
+          # manifest on the default branch.
+          if [[ "$tag_version" == *-* ]]; then
+            echo "Pre-release tag $GITHUB_REF_NAME — skipping strict manifest match."
+            {
+              echo ""
+              echo "> Pre-release tag detected: \`$GITHUB_REF_NAME\`."
+              echo "> Manifest ($PY) is not required to match. Pre-releases are not published via \`/plugin update\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           if [[ "$tag_version" != "$PY" ]]; then
             echo "::error::tag $GITHUB_REF_NAME does not match manifest version $PY"
-            echo "Bump mempalace/version.py, pyproject.toml, and all plugin manifests before tagging."
+            echo "Bump mempalace/version.py, pyproject.toml, and all plugin manifests before tagging a stable release."
+            echo "For an internal/staging tag, use a semver pre-release suffix (e.g. v${PY}-rc1)."
             exit 1
           fi
           echo "Tag $GITHUB_REF_NAME matches manifest version $PY"
