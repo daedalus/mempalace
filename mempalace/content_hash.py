@@ -115,17 +115,24 @@ class ContentHashDB:
             if content_hash in self._hash_set:
                 return True
             self._hash_set.add(content_hash)
-            self._conn.execute(
-                "INSERT INTO content_hashes (filepath, content_hash) VALUES (?, ?)",
-                (filepath_str, content_hash),
-            )
+            try:
+                self._conn.execute(
+                    "INSERT INTO content_hashes (filepath, content_hash) VALUES (?, ?)",
+                    (filepath_str, content_hash),
+                )
+            except sqlite3.IntegrityError:
+                return True
             return False
         else:
             self._hash_set.add(content_hash)
-            self._conn.execute(
-                "INSERT INTO content_hashes (filepath, content_hash) VALUES (?, ?)",
-                (filepath_str, content_hash),
-            )
+            try:
+                self._conn.execute(
+                    "INSERT INTO content_hashes (filepath, content_hash) VALUES (?, ?)",
+                    (filepath_str, content_hash),
+                )
+            except sqlite3.IntegrityError:
+                self._hash_set.discard(content_hash)
+                return True
             self.bloom.add(content_hash)
             return False
 

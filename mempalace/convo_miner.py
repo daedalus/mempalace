@@ -16,7 +16,7 @@ from datetime import datetime
 from collections import defaultdict
 
 from .normalize import normalize
-from .content_hash import BloomFilter, ContentHashDB
+from .content_hash import ContentHashDB
 from .palace import (
     NORMALIZE_VERSION,
     SKIP_DIRS,
@@ -402,18 +402,11 @@ def mine_convos(
     for i, filepath in enumerate(files, 1):
         source_file = str(filepath)
 
-        # Skip if already filed (content hash check first)
-        if not dry_run and hash_db:
-            if hash_db.check_and_add(filepath):
+        if file_already_mined(collection, source_file):
+            if hash_db and hash_db.check_and_add(filepath):
+                hash_db.record(filepath)
                 files_skipped += 1
                 continue
-
-        # Fallback: check ChromaDB for safety
-        if not dry_run and file_already_mined(collection, source_file):
-            if hash_db:
-                hash_db.record(filepath)
-            files_skipped += 1
-            continue
 
         # Normalize format
         try:
@@ -421,11 +414,15 @@ def mine_convos(
         except (OSError, ValueError):
             if not dry_run:
                 _register_file(collection, source_file, wing, agent)
+                if hash_db:
+                    hash_db.record(filepath)
             continue
 
         if not content or len(content.strip()) < MIN_CHUNK_SIZE:
             if not dry_run:
                 _register_file(collection, source_file, wing, agent)
+                if hash_db:
+                    hash_db.record(filepath)
             continue
 
         # Chunk — either exchange pairs or general extraction
@@ -440,6 +437,8 @@ def mine_convos(
         if not chunks:
             if not dry_run:
                 _register_file(collection, source_file, wing, agent)
+                if hash_db:
+                    hash_db.record(filepath)
             continue
 
         # Detect room from content (general mode uses memory_type instead)

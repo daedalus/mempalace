@@ -10,23 +10,19 @@ Stores verbatim chunks as drawers. No summaries. Ever.
 import os
 import sys
 import hashlib
-import json
 import fnmatch
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
 
-import chromadb
-
-from .palace import SKIP_DIRS, get_collection, file_already_mined
-from .content_hash import BloomFilter, ContentHashDB
+from .content_hash import ContentHashDB
 from .palace import (
-    NORMALIZE_VERSION,
     SKIP_DIRS,
-    build_closet_lines,
-    file_already_mined,
-    get_closets_collection,
     get_collection,
+    file_already_mined,
+    NORMALIZE_VERSION,
+    build_closet_lines,
+    get_closets_collection,
     mine_lock,
     purge_file_closets,
     upsert_closet_lines,
@@ -590,14 +586,12 @@ def process_file(
 ) -> tuple:
     """Read, chunk, route, and file one file. Returns (drawer_count, room_name)."""
 
-    # Skip if already filed (content hash check first)
-    if not dry_run and hash_db:
-        if hash_db.check_and_add(filepath):
-            return 0
-
     source_file = str(filepath)
-    if not dry_run and file_already_mined(collection, source_file, check_mtime=True):
-        return 0, "general"
+
+    if file_already_mined(collection, source_file, check_mtime=True) if not dry_run else False:
+        if hash_db and hash_db.check_and_add(filepath):
+            hash_db.record(filepath)
+            return 0, "general"
 
     try:
         content = filepath.read_text(encoding="utf-8", errors="replace")
@@ -797,6 +791,7 @@ def mine(
         closets_col = get_closets_collection(palace_path)
     else:
         collection = None
+        hash_db = None
         closets_col = None
 
     total_drawers = 0
