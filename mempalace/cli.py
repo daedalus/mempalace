@@ -34,6 +34,7 @@ import argparse
 from pathlib import Path
 
 from .config import MempalaceConfig
+from .version import __version__
 
 
 _MEMPALACE_PROJECT_FILES = ("mempalace.yaml", "entities.json")
@@ -470,10 +471,17 @@ def cmd_compress(args):
 
 
 def main():
+    version_label = f"MemPalace {__version__}"
     parser = argparse.ArgumentParser(
         description="MemPalace — Give your AI a memory. No API key required.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        epilog=f"{version_label}\n\n{__doc__}",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=version_label,
+        help="Show version and exit",
     )
     parser.add_argument(
         "--palace",
