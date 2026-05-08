@@ -1,9 +1,41 @@
 import hashlib
-import json
+import gzip
+import io
 import math
 import os
+import pickle
 import sqlite3
 from pathlib import Path
+
+
+# Allowed modules/classes for safe unpickling
+_SAFE_CLASSES = {
+    ("builtins", "list"),
+    ("builtins", "dict"),
+    ("builtins", "set"),
+    ("builtins", "int"),
+    ("builtins", "float"),
+    ("builtins", "bool"),
+    ("builtins", "str"),
+    ("builtins", "tuple"),
+    ("builtins", "bytearray"),
+}
+
+
+class SafeUnpickler(pickle.Unpickler):
+    """Restricted unpickler that only allows safe built-in types."""
+
+    def find_class(self, module, name):
+        if (module, name) in _SAFE_CLASSES:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(
+            f"Potentially unsafe pickle: {module}.{name} is not allowed"
+        )
+
+
+def _compute_blob_hash(data: bytes) -> str:
+    """Compute SHA256 hash of data for integrity verification."""
+    return hashlib.sha256(data).hexdigest()
 
 
 class BloomFilter:
@@ -35,23 +67,52 @@ class BloomFilter:
         return all(self.array[idx] for idx in self._hashes(item))
 
     def save(self, path: str):
-        with open(path, "w") as f:
-            json.dump(
-                {"array_size": self.size, "hash_count": self.hash_count, "array": self.array},
-                f,
-            )
+        """Save bloom filter as compressed, hashed pickle."""
+        data = {
+            "array_size": self.size,
+            "hash_count": self.hash_count,
+            "array": self.array,
+        }
+        # Pickle the data
+        pickled = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+        # Compute integrity hash
+        integrity_hash = _compute_blob_hash(pickled)
+        # Prepend the hash (64 hex chars) to the pickled data
+        payload = integrity_hash.encode("ascii") + pickled
+        # Compress with gzip
+        compressed = gzip.compress(payload, compresslevel=6)
+        with open(path, "wb") as f:
+            f.write(compressed)
 
     @classmethod
     def load(cls, path: str) -> "BloomFilter":
+        """Load bloom filter from compressed, hashed pickle. Safe against code execution."""
         if not os.path.exists(path):
             return cls()
-        with open(path, "r") as f:
-            data = json.load(f)
-        bf = cls.__new__(cls)
-        bf.size = data["array_size"]
-        bf.hash_count = data["hash_count"]
-        bf.array = data["array"]
-        return bf
+        try:
+            with open(path, "rb") as f:
+                compressed = f.read()
+            # Decompress
+            payload = gzip.decompress(compressed)
+            # Extract integrity hash (first 64 bytes = hex SHA256)
+            stored_hash = payload[:64].decode("ascii")
+            pickled = payload[64:]
+            # Verify integrity hash
+            computed_hash = _compute_blob_hash(pickled)
+            if not stored_hash == computed_hash:
+                raise ValueError(
+                    f"Bloom filter integrity check failed: stored={stored_hash[:8]}... "
+                    f"computed={computed_hash[:8]}..."
+                )
+            # Safe unpickle — only allows basic built-in types
+            data = SafeUnpickler(io.BytesIO(pickled)).load()
+            bf = cls.__new__(cls)
+            bf.size = data["array_size"]
+            bf.hash_count = data["hash_count"]
+            bf.array = data["array"]
+            return bf
+        except (pickle.UnpicklingError, ValueError, KeyError, EOFError, gzip.BadGzipFile) as e:
+            raise ValueError(f"Failed to load bloom filter from {path}: {e}")
 
 
 class ContentHashDB:

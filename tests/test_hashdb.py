@@ -1,7 +1,14 @@
+import gzip
 import os
+import pickle
 import tempfile
 import shutil
 from pathlib import Path
+from collections import defaultdict
+
+import pytest
+
+
 import hashlib
 
 from mempalace.content_hash import BloomFilter, ContentHashDB
@@ -139,3 +146,71 @@ class TestContentHashDB:
 
         assert is_dup is False
         assert str(test_file) in db.hashes
+
+
+class TestBloomFilterSecurity:
+    def test_malicious_pickle_rejected(self, tmp_path):
+        """Verify that a malicious pickle file is rejected."""
+        from mempalace.content_hash import BloomFilter
+
+        bloom_file = tmp_path / "evil.bloom"
+
+        # Create a malicious pickle that tries to execute code
+        # This uses __reduce__ to call os.system
+        import pickle
+        import os
+
+        class Malicious:
+            def __reduce__(self):
+                return (os.system, ("echo PWNED",))
+
+        # Create a fake payload that looks like a valid bloom but contains malicious data
+        # We'll just write garbage with a valid-looking hash prefix
+        malicious_data = pickle.dumps(Malicious())
+        fake_hash = "a" * 64  # Wrong hash
+        payload = fake_hash.encode("ascii") + malicious_data
+        compressed = gzip.compress(payload)
+
+        with open(bloom_file, "wb") as f:
+            f.write(compressed)
+
+        # Attempting to load should fail (either hash mismatch or SafeUnpickler)
+        with pytest.raises((ValueError, pickle.UnpicklingError)):
+            BloomFilter.load(str(bloom_file))
+
+    def test_corrupted_hash_rejected(self, tmp_path):
+        """Verify that a file with corrupted hash is rejected."""
+        from mempalace.content_hash import BloomFilter
+
+        bf = BloomFilter(capacity=100)
+        bf.add("test")
+        bf.save(str(tmp_path / "test.bloom"))
+
+        # Now corrupt the hash prefix
+        with open(tmp_path / "test.bloom", "rb") as f:
+            compressed = f.read()
+
+        decompressed = gzip.decompress(compressed)
+        # Replace the first 64 bytes (the hash) with garbage
+        corrupted = b"0" * 64 + decompressed[64:]
+        recompressed = gzip.compress(corrupted)
+
+        with open(tmp_path / "test.bloom", "wb") as f:
+            f.write(recompressed)
+
+        with pytest.raises(ValueError, match="integrity check failed"):
+            BloomFilter.load(str(tmp_path / "test.bloom"))
+
+    def test_safe_unpickler_allows_basic_types(self, tmp_path):
+        """Verify that SafeUnpickler allows basic types."""
+        from mempalace.content_hash import BloomFilter
+
+        bf = BloomFilter(capacity=100)
+        bf.add("hello")
+        bf.add("world")
+        bf.save(str(tmp_path / "test.bloom"))
+
+        # Loading should work fine - only basic types used
+        bf2 = BloomFilter.load(str(tmp_path / "test.bloom"))
+        assert "hello" in bf2
+        assert "world" in bf2
