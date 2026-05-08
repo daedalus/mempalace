@@ -97,7 +97,9 @@ class ContentHashDB:
     def compute_hash(self, filepath: Path) -> str:
         """Compute SHA256 hash of file content."""
         h = hashlib.sha256()
-        h.update(filepath.read_bytes())
+        with open(filepath, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                h.update(chunk)
         return h.hexdigest()
 
     def check_and_add(self, filepath: Path) -> bool:
